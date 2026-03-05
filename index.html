@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MMR GeoPortal — Mumbai Metropolitan Region Smart City Digital Twin</title>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<!-- Leaflet Draw CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+
+<style>
+/* ── RESET & BASE ─────────────────────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:       #040810;
+  --bg2:      #070c18;
+  --bg3:      #0a1020;
+  --panel:    rgba(5,10,22,0.97);
+  --border:   rgba(255,255,255,0.07);
+  --accent:   #00e5ff;
+  --accent2:  #ff6b35;
+  --accent3:  #06d6a0;
+  --accent4:  #ffd23f;
+  --danger:   #ef233c;
+  --text:     #c8d6e8;
+  --muted:    #4a5568;
+  --font-ui:  'Rajdhani', sans-serif;
+  --font-mono:'Share Tech Mono', monospace;
+  --font-disp:'Orbitron', sans-serif;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-ui);}
+
+/* ── SCROLLBAR ────────────────────────────────────────────── */
+::-webkit-scrollbar{width:3px;}
+::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.2);border-radius:2px;}
+
+/* ── LEAFLET OVERRIDES ────────────────────────────────────── */
+.leaflet-container{background:#040810 !important;font-family:var(--font-ui)!important;}
+.leaflet-control-zoom{display:none!important;}
+.leaflet-control-attribution{
+  background:rgba(4,8,16,0.85)!important;color:#2a3a4a!important;
+  font-size:9px!important;border:none!important;border-radius:4px!important;
+  padding:2px 6px!important;
+}
+.leaflet-control-attribution a{color:#334!important;}
+.leaflet-popup-content-wrapper{
+  background:rgba(5,10,22,0.97)!important;border:1px solid rgba(0,229,255,0.2)!important;
+  border-radius:10px!important;color:var(--text)!important;
+  box-shadow:0 10px 40px rgba(0,0,0,0.8),0 0 20px rgba(0,229,255,0.1)!important;
+}
+.leaflet-popup-tip{background:rgba(5,10,22,0.97)!important;}
+.leaflet-popup-close-button{color:#4a5568!important;font-size:16px!important;top:8px!important;right:8px!important;}
+.leaflet-draw-toolbar a{background-color:rgba(5,10,22,0.95)!important;border-color:rgba(0,229,255,0.2)!important;color:var(--accent)!important;}
+
+/* ── LAYOUT ───────────────────────────────────────────────── */
+#app{position:relative;width:100vw;height:100vh;display:flex;flex-direction:column;}
+#header{flex-shrink:0;height:52px;background:rgba(4,8,16,0.98);border-bottom:1px solid rgba(0,229,255,0.12);display:flex;align-items:center;padding:0 16px;gap:16px;z-index:2000;position:relative;}
+#main{flex:1;display:flex;position:relative;overflow:hidden;}
+#map{flex:1;height:100%;}
+#statusbar{flex-shrink:0;height:28px;background:rgba(3,6,14,0.98);border-top:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;padding:0 12px;gap:0;z-index:2000;}
+
+/* ── HEADER ───────────────────────────────────────────────── */
+.logo-wrap{display:flex;align-items:center;gap:10px;}
+.logo-icon{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#00e5ff22,#00e5ff11);border:1px solid rgba(0,229,255,0.3);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+.logo-icon::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 40%,rgba(0,229,255,0.1));animation:shimmer 3s infinite;}
+.logo-text{line-height:1;}
+.logo-title{font-family:var(--font-disp);font-size:13px;font-weight:900;color:var(--accent);letter-spacing:0.08em;}
+.logo-sub{font-size:9px;color:#1e3a4a;letter-spacing:0.15em;font-family:var(--font-mono);margin-top:1px;}
+
+.mode-toggle{display:flex;background:rgba(255,255,255,0.03);border-radius:7px;padding:3px;border:1px solid var(--border);margin-left:20px;}
+.mode-btn{display:flex;align-items:center;gap:5px;padding:5px 14px;border-radius:5px;border:1px solid transparent;background:transparent;color:#334;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.08em;font-family:var(--font-disp);transition:all 0.2s;}
+.mode-btn.active{background:rgba(0,229,255,0.12);border-color:rgba(0,229,255,0.3);color:var(--accent);}
+
+.header-spacer{flex:1;}
+.live-indicators{display:flex;align-items:center;gap:14px;}
+.live-dot{display:flex;align-items:center;gap:5px;font-size:9px;color:#1e3a4a;font-family:var(--font-mono);}
+.live-dot span{width:5px;height:5px;border-radius:50%;background:var(--accent3);box-shadow:0 0 6px var(--accent3);animation:pulse 2s infinite;}
+.live-dot span.warn{background:var(--accent4);box-shadow:0 0 6px var(--accent4);}
+#live-time{font-family:var(--font-mono);font-size:10px;color:#2a3a4a;border-left:1px solid var(--border);padding-left:12px;}
+
+/* ── SIDEBAR RAIL ─────────────────────────────────────────── */
+#sidebar-rail{width:50px;background:rgba(4,8,16,0.98);border-right:1px solid rgba(255,255,255,0.04);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:2px;z-index:1500;}
+.rail-btn{width:38px;height:38px;border-radius:8px;background:transparent;border:1px solid transparent;color:#2a3a5a;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;position:relative;}
+.rail-btn:hover{background:rgba(0,229,255,0.06);color:#5a8a9a;}
+.rail-btn.active{background:rgba(0,229,255,0.12);border-color:rgba(0,229,255,0.25);color:var(--accent);}
+.rail-btn svg{width:16px;height:16px;}
+.rail-divider{width:28px;height:1px;background:var(--border);margin:4px 0;}
+
+/* ── SIDE PANEL ───────────────────────────────────────────── */
+#side-panel{width:0;overflow:hidden;transition:width 0.25s cubic-bezier(0.4,0,0.2,1);background:rgba(5,9,20,0.98);border-right:1px solid rgba(255,255,255,0.05);z-index:1400;display:flex;flex-direction:column;}
+#side-panel.open{width:260px;}
+.panel-header{padding:12px 14px 10px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;}
+.panel-title{font-size:10px;font-weight:700;letter-spacing:0.14em;color:#3a5a7a;font-family:var(--font-mono);}
+.panel-close{background:none;border:none;color:#2a3a4a;cursor:pointer;font-size:16px;line-height:1;padding:2px 4px;}
+.panel-close:hover{color:#5a6a7a;}
+.panel-body{flex:1;overflow-y:auto;padding-bottom:12px;}
+
+/* ── PANEL SECTIONS ───────────────────────────────────────── */
+.section-label{padding:10px 14px 5px;font-size:9px;font-weight:700;letter-spacing:0.14em;color:#1e2e3e;font-family:var(--font-mono);text-transform:uppercase;}
+
+/* Layer items */
+.layer-group-header{padding:6px 14px;background:rgba(255,255,255,0.02);font-size:9px;color:#2a4a5a;font-weight:700;letter-spacing:0.1em;cursor:pointer;display:flex;justify-content:space-between;align-items:center;}
+.layer-group-header:hover{background:rgba(255,255,255,0.04);}
+.layer-item{padding:8px 14px;border-bottom:1px solid rgba(255,255,255,0.025);display:flex;flex-direction:column;gap:5px;}
+.layer-row{display:flex;align-items:center;gap:8px;}
+.layer-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0;}
+.layer-name{flex:1;font-size:12px;color:#8a9ab0;line-height:1.2;}
+.layer-toggle{background:none;border:none;cursor:pointer;padding:2px;color:#2a3a4a;transition:color 0.2s;flex-shrink:0;}
+.layer-toggle.on{color:var(--accent3);}
+.opacity-row{display:flex;align-items:center;gap:6px;padding-left:17px;}
+.opacity-row input[type=range]{flex:1;height:2px;accent-color:var(--accent);}
+.opacity-val{font-size:9px;color:#2a3a4a;font-family:var(--font-mono);width:26px;text-align:right;}
+
+/* Basemap grid */
+.basemap-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:10px 12px;}
+.bm-btn{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:8px;cursor:pointer;text-align:center;transition:all 0.2s;}
+.bm-btn:hover{background:rgba(0,229,255,0.05);}
+.bm-btn.active{background:rgba(0,229,255,0.1);border-color:rgba(0,229,255,0.35);}
+.bm-preview{width:100%;height:34px;border-radius:5px;margin-bottom:5px;}
+.bm-name{font-size:10px;font-weight:600;color:#5a7a8a;}
+.bm-btn.active .bm-name{color:var(--accent);}
+
+/* GeoAI */
+.geoai-badge{margin:8px 12px;padding:8px 10px;background:rgba(6,214,160,0.06);border:1px solid rgba(6,214,160,0.15);border-radius:7px;}
+.geoai-badge-title{font-size:9px;font-weight:700;color:var(--accent3);letter-spacing:0.1em;margin-bottom:2px;}
+.geoai-badge-sub{font-size:9px;color:#2a4a3a;}
+.index-btn{width:calc(100% - 24px);margin:3px 12px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.05);border-radius:7px;padding:9px 11px;cursor:pointer;text-align:left;transition:all 0.2s;display:flex;justify-content:space-between;align-items:center;}
+.index-btn:hover{background:rgba(0,229,255,0.05);}
+.index-btn.active{border-color:rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);}
+.index-btn-left .idx-name{font-size:12px;font-weight:700;color:#8a9ab0;display:block;}
+.index-btn-left .idx-desc{font-size:9px;color:#2a3a4a;display:block;margin-top:1px;}
+.index-btn.active .idx-name{color:var(--accent);}
+.idx-src{font-size:9px;color:#1e2e3e;font-family:var(--font-mono);}
+
+/* Measure tools */
+.tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:10px 12px;}
+.tool-btn{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:10px 8px;cursor:pointer;text-align:center;transition:all 0.2s;}
+.tool-btn:hover{background:rgba(255,107,53,0.06);}
+.tool-btn.active{background:rgba(255,107,53,0.12);border-color:rgba(255,107,53,0.35);}
+.tool-btn svg{width:20px;height:20px;color:#2a4a5a;margin-bottom:4px;}
+.tool-btn.active svg{color:var(--accent2);}
+.tool-btn .tb-name{font-size:10px;font-weight:700;color:#3a5a6a;display:block;}
+.tool-btn.active .tb-name{color:var(--accent2);}
+.tool-hint{margin:0 12px 8px;padding:9px 11px;background:rgba(255,107,53,0.06);border:1px solid rgba(255,107,53,0.15);border-radius:7px;font-size:10px;color:#5a4a3a;}
+.measure-results{padding:0 12px;}
+.mresult{background:rgba(255,255,255,0.03);border-radius:6px;padding:8px 10px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;}
+.mresult-type{font-size:10px;color:#3a5a6a;}
+.mresult-val{font-size:12px;font-weight:700;color:var(--accent3);font-family:var(--font-mono);}
+
+/* Search */
+.search-wrap{padding:10px 12px;}
+.search-input{width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:9px 12px;color:var(--text);font-size:12px;font-family:var(--font-ui);outline:none;transition:border-color 0.2s;}
+.search-input:focus{border-color:rgba(0,229,255,0.3);}
+.search-input::placeholder{color:#2a3a4a;}
+.search-btn{width:100%;margin-top:7px;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);color:var(--accent);border-radius:8px;padding:9px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:0.05em;font-family:var(--font-disp);transition:all 0.2s;}
+.search-btn:hover{background:rgba(0,229,255,0.18);}
+.quick-locs{margin-top:10px;}
+.qloc-btn{width:100%;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);border-radius:6px;padding:8px 10px;margin-bottom:4px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:all 0.15s;}
+.qloc-btn:hover{background:rgba(0,229,255,0.05);border-color:rgba(0,229,255,0.12);}
+.qloc-name{font-size:12px;color:#8a9ab0;}
+.qloc-meta{display:flex;align-items:center;gap:6px;}
+.qloc-pop{font-size:9px;color:#2a3a4a;font-family:var(--font-mono);}
+.qloc-dot{width:6px;height:6px;border-radius:50%;}
+
+/* ── MAP OVERLAYS ─────────────────────────────────────────── */
+#district-bar{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1100;display:flex;gap:4px;pointer-events:all;}
+.dbar-btn{background:rgba(4,8,16,0.88);border:1px solid rgba(255,255,255,0.07);border-radius:20px;padding:5px 13px;cursor:pointer;font-size:10px;font-weight:700;color:#2a4a5a;font-family:var(--font-disp);letter-spacing:0.06em;transition:all 0.2s;white-space:nowrap;backdrop-filter:blur(10px);}
+.dbar-btn:hover{color:#5a8a9a;border-color:rgba(0,229,255,0.2);}
+.dbar-btn.active{color:var(--accent);border-color:rgba(0,229,255,0.4);background:rgba(0,229,255,0.08);}
+
+/* GeoMarker Popup */
+#geomarker{position:absolute;bottom:38px;right:14px;width:310px;background:rgba(4,8,18,0.98);border:1px solid rgba(0,229,255,0.2);border-radius:12px;z-index:1500;font-family:var(--font-mono);box-shadow:0 20px 60px rgba(0,0,0,0.9),0 0 40px rgba(0,229,255,0.06);display:none;animation:slideUp 0.25s ease;}
+#geomarker.show{display:block;}
+.gm-header{background:linear-gradient(135deg,rgba(0,229,255,0.08),rgba(6,214,160,0.06));padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center;border-radius:12px 12px 0 0;}
+.gm-title-row{display:flex;align-items:center;gap:7px;}
+.gm-pulse{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);animation:pulse 2s infinite;}
+.gm-title{font-size:10px;font-weight:700;color:var(--accent);letter-spacing:0.12em;}
+.gm-close{background:none;border:none;color:#2a3a4a;cursor:pointer;font-size:16px;line-height:1;}
+.gm-close:hover{color:#5a6a7a;}
+.gm-body{padding:12px 14px;}
+.gm-coords{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;}
+.gm-coord{background:rgba(255,255,255,0.03);border-radius:7px;padding:7px 9px;border:1px solid rgba(255,255,255,0.05);}
+.gm-coord-label{font-size:8px;color:#2a3a4a;letter-spacing:0.08em;margin-bottom:3px;}
+.gm-coord-val{font-size:12px;font-weight:700;color:var(--accent3);}
+.gm-rows{display:flex;flex-direction:column;gap:0;}
+.gm-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.03);}
+.gm-row-key{font-size:10px;color:#2a3a4a;}
+.gm-row-val{font-size:10px;font-weight:600;color:#8a9ab0;max-width:170px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gm-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-top:10px;}
+.gm-stat{background:rgba(255,255,255,0.03);border-radius:7px;padding:7px;text-align:center;border:1px solid rgba(255,255,255,0.05);}
+.gm-stat-label{font-size:8px;color:#2a3a4a;margin-bottom:3px;}
+.gm-stat-val{font-size:14px;font-weight:900;}
+.gm-stat-sub{font-size:8px;margin-top:1px;}
+
+/* North Arrow */
+#north-arrow{position:absolute;top:56px;right:14px;width:36px;height:36px;z-index:1100;pointer-events:none;}
+
+/* Scale bar */
+#scalebar{position:absolute;bottom:38px;left:300px;z-index:1100;pointer-events:none;}
+.scalebar-inner{display:flex;flex-direction:column;align-items:flex-end;gap:3px;}
+.scalebar-bar{display:flex;align-items:center;}
+.scalebar-seg{height:5px;}
+.scalebar-label{font-size:9px;color:#2a4a5a;font-family:var(--font-mono);}
+
+/* Legend */
+#legend{position:absolute;bottom:38px;left:58px;background:rgba(4,8,18,0.92);border:1px solid rgba(255,255,255,0.06);border-radius:9px;padding:9px 11px;z-index:1100;min-width:130px;backdrop-filter:blur(10px);}
+.legend-title{font-size:8px;color:#2a3a4a;letter-spacing:0.1em;margin-bottom:6px;font-family:var(--font-mono);}
+.legend-item{display:flex;align-items:center;gap:7px;margin-bottom:4px;}
+.legend-swatch{width:14px;height:4px;border-radius:2px;flex-shrink:0;}
+.legend-name{font-size:10px;color:#4a6a7a;}
+
+/* GeoAI Active Badge */
+#geoai-badge{position:absolute;top:56px;right:58px;background:rgba(4,8,18,0.92);border:1px solid rgba(6,214,160,0.25);border-radius:8px;padding:7px 11px;z-index:1100;display:none;animation:fadeIn 0.3s ease;}
+#geoai-badge.show{display:block;}
+.gab-title{font-size:9px;font-weight:700;color:var(--accent3);margin-bottom:2px;font-family:var(--font-mono);}
+.gab-sub{font-size:9px;color:#2a4a3a;font-family:var(--font-mono);}
+
+/* 3D View */
+#view3d{position:absolute;inset:0;background:radial-gradient(ellipse at 30% 40%,#061530 0%,#020508 65%);z-index:900;display:none;align-items:center;justify-content:center;overflow:hidden;}
+#view3d.show{display:flex;}
+.grid3d{position:absolute;inset:0;background-image:linear-gradient(rgba(0,229,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.04) 1px,transparent 1px);background-size:50px 50px;animation:gridFlow 20s linear infinite;}
+.horizon3d{position:absolute;bottom:38%;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.3),transparent);box-shadow:0 0 30px rgba(0,229,255,0.2);}
+.view3d-content{position:relative;z-index:2;text-align:center;}
+.globe3d{width:190px;height:190px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#0a2040,#020508);border:1px solid rgba(0,229,255,0.25);box-shadow:0 0 80px rgba(0,229,255,0.15),inset 0 0 40px rgba(0,229,255,0.04);margin:0 auto 28px;position:relative;overflow:hidden;}
+.globe3d::before,.globe3d::after{content:'';position:absolute;left:0;right:0;height:1px;background:rgba(0,229,255,0.12);}
+.globe3d::before{top:35%;}
+.globe3d::after{top:65%;}
+.globe-lat{position:absolute;top:0;bottom:0;width:1px;background:rgba(0,229,255,0.1);}
+.globe-pin{position:absolute;top:46%;left:44%;width:9px;height:9px;border-radius:50%;background:var(--accent2);box-shadow:0 0 14px var(--accent2);animation:pulse 2s infinite;}
+.v3d-title{font-family:var(--font-disp);font-size:12px;font-weight:700;color:var(--accent);letter-spacing:0.2em;margin-bottom:6px;}
+.v3d-sub{font-size:10px;color:#0a2030;font-family:var(--font-mono);margin-bottom:20px;}
+.v3d-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:420px;}
+.v3d-card{background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.12);border-radius:8px;padding:10px;}
+.v3d-card-val{font-size:12px;font-weight:900;color:var(--accent);margin-bottom:2px;font-family:var(--font-disp);}
+.v3d-card-name{font-size:10px;color:#8a9ab0;font-weight:600;}
+.v3d-card-desc{font-size:9px;color:#2a3a4a;margin-top:2px;}
+.v3d-pipeline{margin-top:16px;display:inline-block;background:rgba(255,107,53,0.08);border:1px solid rgba(255,107,53,0.2);border-radius:6px;padding:5px 14px;font-size:9px;color:var(--accent2);font-family:var(--font-mono);}
+
+/* ── STATUS BAR ───────────────────────────────────────────── */
+.sb-item{display:flex;align-items:center;gap:5px;padding-right:14px;border-right:1px solid rgba(255,255,255,0.05);margin-right:14px;}
+.sb-item:last-child{border-right:none;margin-right:0;}
+.sb-label{font-size:8px;color:#1a2a3a;letter-spacing:0.08em;text-transform:uppercase;font-family:var(--font-mono);}
+.sb-val{font-size:9px;color:#2a4a5a;font-family:var(--font-mono);}
+.sb-spacer{flex:1;}
+.sb-services{display:flex;align-items:center;gap:8px;}
+.sb-svc{display:flex;align-items:center;gap:4px;font-size:8px;color:#1a2a3a;font-family:var(--font-mono);}
+.sb-svc-dot{width:4px;height:4px;border-radius:50%;background:var(--accent3);box-shadow:0 0 5px var(--accent3);}
+
+/* ── ANIMATIONS ───────────────────────────────────────────── */
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.6;transform:scale(1.3);}}
+@keyframes shimmer{0%{transform:translateX(-100%);}100%{transform:translateX(200%);}}
+@keyframes gridFlow{0%{background-position:0 0;}100%{background-position:50px 50px;}}
+@keyframes slideUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes scanline{0%{top:-100%;}100%{top:200%;}}
+</style>
+</head>
+
+<body>
+<div id="app">
+
+  <!-- ── HEADER ─────────────────────────────────────────────── -->
+  <div id="header">
+    <div class="logo-wrap">
+      <div class="logo-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00e5ff" stroke-width="1.8">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+      </div>
+      <div class="logo-text">
+        <div class="logo-title">MMR GEOPORTAL</div>
+        <div class="logo-sub">MUMBAI METROPOLITAN REGION · SMART CITY DIGITAL TWIN</div>
+      </div>
+    </div>
+
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="btn2d" onclick="setMode('2d')">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/></svg>
+        2D MAP
+      </button>
+      <button class="mode-btn" id="btn3d" onclick="setMode('3d')">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        3D TWIN
+      </button>
+    </div>
+
+    <div class="header-spacer"></div>
+
+    <div class="live-indicators">
+      <div class="live-dot"><span></span>GeoServer</div>
+      <div class="live-dot"><span></span>PostGIS</div>
+      <div class="live-dot"><span></span>GEE API</div>
+      <div class="live-dot"><span class="warn"></span>3DCityDB</div>
+    </div>
+    <div id="live-time"></div>
+  </div>
+
+  <!-- ── MAIN ────────────────────────────────────────────────── -->
+  <div id="main">
+
+    <!-- Sidebar Rail -->
+    <div id="sidebar-rail">
+      <button class="rail-btn" id="rb-layers" onclick="togglePanel('layers')" title="Layers">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </button>
+      <button class="rail-btn" id="rb-basemap" onclick="togglePanel('basemap')" title="Basemaps">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      </button>
+      <button class="rail-btn" id="rb-geoai" onclick="togglePanel('geoai')" title="GeoAI">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </button>
+      <div class="rail-divider"></div>
+      <button class="rail-btn" id="rb-measure" onclick="togglePanel('measure')" title="Measure">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="2" y1="12" x2="22" y2="12"/><path d="M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg>
+      </button>
+      <button class="rail-btn" id="rb-search" onclick="togglePanel('search')" title="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      </button>
+      <div class="rail-divider"></div>
+      <button class="rail-btn" id="rb-admin" onclick="togglePanel('admin')" title="Admin">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </button>
+    </div>
+
+    <!-- Side Panel -->
+    <div id="side-panel">
+      <div class="panel-header">
+        <span class="panel-title" id="panel-title">LAYERS</span>
+        <button class="panel-close" onclick="closePanel()">✕</button>
+      </div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>
+
+    <!-- Map -->
+    <div id="map"></div>
+
+    <!-- 3D View -->
+    <div id="view3d">
+      <div class="grid3d"></div>
+      <div class="horizon3d"></div>
+      <div class="view3d-content">
+        <div class="globe3d">
+          <div class="globe-lat" style="left:30%"></div>
+          <div class="globe-lat" style="left:50%"></div>
+          <div class="globe-lat" style="left:70%"></div>
+          <div class="globe-pin"></div>
+        </div>
+        <div class="v3d-title">CESIUMJS 3D DIGITAL TWIN</div>
+        <div class="v3d-sub">Mumbai Metropolitan Region · UTM Zone 43N · EPSG:32643</div>
+        <div class="v3d-cards">
+          <div class="v3d-card"><div class="v3d-card-val">2.4M+</div><div class="v3d-card-name">3D Buildings</div><div class="v3d-card-desc">CityGML + 3D Tiles</div></div>
+          <div class="v3d-card"><div class="v3d-card-val">30m</div><div class="v3d-card-name">NASADEM</div><div class="v3d-card-desc">Terrain resolution</div></div>
+          <div class="v3d-card"><div class="v3d-card-val">10m</div><div class="v3d-card-name">Sentinel-2</div><div class="v3d-card-desc">Multispectral tex</div></div>
+        </div>
+        <div class="v3d-pipeline">3DCityDB → CityGML → Cesium 3D Tiles → LoD2 Buildings</div>
+      </div>
+    </div>
+
+    <!-- District Bar -->
+    <div id="district-bar"></div>
+
+    <!-- North Arrow -->
+    <div id="north-arrow">
+      <svg viewBox="0 0 36 36" width="36" height="36">
+        <circle cx="18" cy="18" r="17" fill="rgba(4,8,16,0.88)" stroke="rgba(0,229,255,0.15)" stroke-width="1"/>
+        <polygon points="18,5 13,22 18,19 23,22" fill="#00e5ff" opacity="0.9"/>
+        <polygon points="18,31 13,14 18,19 23,14" fill="#1a3a5a" opacity="0.8"/>
+        <text x="18" y="10" text-anchor="middle" fill="#00e5ff" font-size="6.5" font-family="Orbitron" font-weight="700">N</text>
+      </svg>
+    </div>
+
+    <!-- GeoAI Badge -->
+    <div id="geoai-badge">
+      <div class="gab-title">● GeoAI ACTIVE</div>
+      <div class="gab-sub" id="gab-sub-text">NDVI · Sentinel-2</div>
+    </div>
+
+    <!-- GeoMarker Popup -->
+    <div id="geomarker">
+      <div class="gm-header">
+        <div class="gm-title-row">
+          <div class="gm-pulse"></div>
+          <span class="gm-title">SMART GEOMARKER</span>
+        </div>
+        <button class="gm-close" onclick="closeGeoMarker()">✕</button>
+      </div>
+      <div class="gm-body">
+        <div class="gm-coords">
+          <div class="gm-coord"><div class="gm-coord-label">LATITUDE</div><div class="gm-coord-val" id="gm-lat">—</div></div>
+          <div class="gm-coord"><div class="gm-coord-label">LONGITUDE</div><div class="gm-coord-val" id="gm-lng">—</div></div>
+          <div class="gm-coord"><div class="gm-coord-label">ELEVATION</div><div class="gm-coord-val" id="gm-elev" style="color:#ffd23f">—</div></div>
+          <div class="gm-coord"><div class="gm-coord-label">PINCODE</div><div class="gm-coord-val" id="gm-pin" style="color:#ffd23f">—</div></div>
+        </div>
+        <div class="gm-rows">
+          <div class="gm-row"><span class="gm-row-key">🏛 District</span><span class="gm-row-val" id="gm-dist">—</span></div>
+          <div class="gm-row"><span class="gm-row-key">📍 Ward</span><span class="gm-row-val" id="gm-ward">—</span></div>
+          <div class="gm-row"><span class="gm-row-key">🏙 Zone Type</span><span class="gm-row-val" id="gm-zone">—</span></div>
+          <div class="gm-row"><span class="gm-row-key">🛣 Nearest Road</span><span class="gm-row-val" id="gm-road">—</span></div>
+          <div class="gm-row"><span class="gm-row-key">🏢 Nearest Building</span><span class="gm-row-val" id="gm-bldg">—</span></div>
+        </div>
+        <div class="gm-stats">
+          <div class="gm-stat">
+            <div class="gm-stat-label">AQI</div>
+            <div class="gm-stat-val" id="gm-aqi" style="color:#06d6a0">—</div>
+            <div class="gm-stat-sub" id="gm-aqi-lbl" style="color:#06d6a0">—</div>
+          </div>
+          <div class="gm-stat">
+            <div class="gm-stat-label">LST</div>
+            <div class="gm-stat-val" id="gm-lst" style="color:#ef233c">—</div>
+            <div class="gm-stat-sub" style="color:#ef233c">Surface°C</div>
+          </div>
+          <div class="gm-stat">
+            <div class="gm-stat-label">NDVI</div>
+            <div class="gm-stat-val" id="gm-ndvi" style="color:#52b788">—</div>
+            <div class="gm-stat-sub" style="color:#52b788">Vegetation</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scale Bar -->
+    <div id="scalebar">
+      <div class="scalebar-inner">
+        <div class="scalebar-bar">
+          <div style="width:1px;height:8px;background:#2a4a5a;"></div>
+          <div class="scalebar-seg" style="width:40px;background:#2a4a5a;"></div>
+          <div class="scalebar-seg" style="width:40px;background:#00e5ff;opacity:0.5;"></div>
+          <div style="width:1px;height:8px;background:#2a4a5a;"></div>
+        </div>
+        <div class="scalebar-label">≈ 5 km</div>
+      </div>
+    </div>
+
+    <!-- Legend (shown when layers active) -->
+    <div id="legend" style="display:none;">
+      <div class="legend-title">LEGEND</div>
+      <div id="legend-items"></div>
+    </div>
+
+  </div><!-- #main -->
+
+  <!-- ── STATUS BAR ─────────────────────────────────────────── -->
+  <div id="statusbar">
+    <div class="sb-item"><span class="sb-label">Region:</span><span class="sb-val">Mumbai Metropolitan Region</span></div>
+    <div class="sb-item"><span class="sb-label">CRS:</span><span class="sb-val">WGS84 / EPSG:4326</span></div>
+    <div class="sb-item"><span class="sb-label">UTM:</span><span class="sb-val">Zone 43N</span></div>
+    <div class="sb-item"><span class="sb-label">Zoom:</span><span class="sb-val" id="sb-zoom">11</span></div>
+    <div class="sb-item"><span class="sb-label">Cursor:</span><span class="sb-val" id="sb-cursor">—</span></div>
+    <div class="sb-spacer"></div>
+    <div class="sb-services">
+      <div class="sb-svc"><div class="sb-svc-dot"></div>GeoServer</div>
+      <div class="sb-svc"><div class="sb-svc-dot"></div>PostGIS</div>
+      <div class="sb-svc"><div class="sb-svc-dot"></div>GEE</div>
+      <div class="sb-svc"><div class="sb-svc-dot" style="background:#ffd23f;box-shadow:0 0 5px #ffd23f;"></div>3DCityDB</div>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<!-- ── SCRIPTS ─────────────────────────────────────────────────────── -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const MMR_CENTER = [19.076, 72.877];
+
+const DISTRICTS = [
+  {name:"Mumbai City",    lat:18.940,lng:72.835,pop:"3.1M",color:"#ff6b35"},
+  {name:"Mumbai Suburban",lat:19.120,lng:72.880,pop:"9.3M",color:"#f7931e"},
+  {name:"Thane",          lat:19.220,lng:72.970,pop:"11.1M",color:"#ffd23f"},
+  {name:"Navi Mumbai",    lat:19.040,lng:73.020,pop:"1.1M",color:"#06d6a0"},
+  {name:"Panvel",         lat:18.990,lng:73.110,pop:"0.8M",color:"#00e5ff"},
+];
+
+const BASEMAPS = [
+  {id:"dark",    name:"CartoDB Dark",   url:"https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",        attr:"© CARTO",           color:"#0a0f1e"},
+  {id:"osm",     name:"OpenStreetMap",  url:"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",                    attr:"© OpenStreetMap",   color:"#4a7c59"},
+  {id:"satellite",name:"ESRI Satellite",url:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attr:"© ESRI",  color:"#1a2f1a"},
+  {id:"topo",    name:"OpenTopoMap",    url:"https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",                      attr:"© OpenTopoMap",     color:"#8B7355"},
+  {id:"hybrid",  name:"Google Hybrid",  url:"https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",                  attr:"© Google",          color:"#2d4a1e"},
+  {id:"streets", name:"Google Streets", url:"https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",                  attr:"© Google",          color:"#c8b89a"},
+];
+
+const LAYERS = [
+  {id:"admin",    name:"Admin Boundaries",    group:"Administrative", color:"#00e5ff", visible:true,  opacity:0.8},
+  {id:"roads",    name:"Road Network",        group:"Transportation", color:"#ffd23f", visible:true,  opacity:0.9},
+  {id:"railways", name:"Railway Network",     group:"Transportation", color:"#06d6a0", visible:false, opacity:1.0},
+  {id:"metro",    name:"Metro Lines",         group:"Transportation", color:"#118ab2", visible:false, opacity:1.0},
+  {id:"buildings",name:"Building Footprints", group:"Urban",         color:"#f77f00", visible:false, opacity:0.7},
+  {id:"water",    name:"Water Bodies",        group:"Environment",   color:"#0077b6", visible:true,  opacity:0.7},
+  {id:"vegetation",name:"Vegetation Cover",   group:"Environment",   color:"#2d6a4f", visible:false, opacity:0.6},
+  {id:"landuse",  name:"Land Use / LULC",     group:"Urban",         color:"#9b5de5", visible:false, opacity:0.6},
+  {id:"uhi",      name:"Urban Heat Island",   group:"GeoAI",         color:"#ef233c", visible:false, opacity:0.65},
+  {id:"ndvi",     name:"NDVI Index",          group:"GeoAI",         color:"#52b788", visible:false, opacity:0.7},
+  {id:"floods",   name:"Flood Risk Zones",    group:"Hazards",       color:"#3a86ff", visible:false, opacity:0.65},
+  {id:"pois",     name:"Points of Interest",  group:"Infrastructure",color:"#e040fb", visible:false, opacity:1.0},
+];
+
+const GEOAI = [
+  {id:"ndvi", name:"NDVI",        desc:"Normalized Difference Vegetation Index",  src:"Sentinel-2"},
+  {id:"ndbi", name:"NDBI",        desc:"Normalized Difference Built-up Index",     src:"Sentinel-2"},
+  {id:"lst",  name:"Land Surface Temp",desc:"Thermal infrared surface temperature", src:"Landsat-8"},
+  {id:"uhi",  name:"Urban Heat Island",desc:"LST anomaly from rural baseline",       src:"Landsat-8"},
+  {id:"mndwi",name:"MNDWI",       desc:"Modified Normalized Difference Water Index",src:"Sentinel-2"},
+  {id:"evi",  name:"EVI",         desc:"Enhanced Vegetation Index",               src:"Sentinel-2"},
+];
+
+const ROADS_SAMPLE  = ["Western Express Hwy","Eastern Express Hwy","NH-48","SH-54","Link Road","Station Road","MG Road","Juhu Tara Road","Ghodbunder Road","Palm Beach Road"];
+const BLDGS_SAMPLE  = ["Residential Complex","Commercial Tower","Shopping Mall","Govt Building","School Campus","Hospital","Mixed-Use Tower","Industrial Unit"];
+const WARDS_SAMPLE  = ["A Ward","B Ward","C Ward","D Ward","E Ward","F/N Ward","K/W Ward","L Ward","M/W Ward","P/N Ward","R/N Ward","T Ward"];
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let map, currentTileLayer, currentPanel = null, mapMode = '2d';
+let activeGeoAI = null, activeTool = null;
+let measurePoints = [], measureLayer = null, bufferLayer = null;
+let measurements = [];
+let layerStates = {};
+LAYERS.forEach(l => layerStates[l.id] = {visible: l.visible, opacity: l.opacity});
+
+// ── INIT MAP ──────────────────────────────────────────────────────────────────
+function initMap() {
+  map = L.map('map', {
+    center: MMR_CENTER, zoom: 11,
+    zoomControl: false, attributionControl: true
+  });
+
+  currentTileLayer = L.tileLayer(BASEMAPS[0].url, {attribution: BASEMAPS[0].attr}).addTo(map);
+
+  // Draw controls
+  const drawnItems = new L.FeatureGroup().addTo(map);
+  const drawControl = new L.Control.Draw({
+    draw:{polygon:true,polyline:true,circle:true,marker:true,rectangle:false,circlemarker:false},
+    edit:{featureGroup:drawnItems}
+  });
+
+  // District circles
+  DISTRICTS.forEach(d => {
+    L.circle([d.lat, d.lng], {
+      radius: 7000, color: d.color, fillColor: d.color,
+      fillOpacity: 0.06, weight: 1.5, opacity: 0.5, dashArray: '6 4'
+    }).addTo(map)
+      .bindPopup(`<b style="color:${d.color}">${d.name}</b><br>Population: ${d.pop}`);
+  });
+
+  // Map events
+  map.on('click', onMapClick);
+  map.on('mousemove', e => {
+    document.getElementById('sb-cursor').textContent =
+      `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+  });
+  map.on('zoomend', () => {
+    document.getElementById('sb-zoom').textContent = map.getZoom();
+  });
+  map.on('draw:created', onDrawCreated);
+
+  buildDistrictBar();
+  setInterval(updateClock, 1000);
+  updateClock();
+}
+
+// ── MAP CLICK → SMART GEOMARKER ───────────────────────────────────────────────
+function onMapClick(e) {
+  if (activeTool === 'distance') { handleDistanceClick(e); return; }
+  if (activeTool === 'buffer')   { handleBufferClick(e);   return; }
+  showGeoMarker(e.latlng.lat, e.latlng.lng);
+}
+
+function showGeoMarker(lat, lng) {
+  const di  = Math.floor(Math.abs(lat * lng * 7)   % DISTRICTS.length);
+  const wi  = Math.floor(Math.abs(lat * lng * 13)  % WARDS_SAMPLE.length);
+  const ri  = Math.floor(Math.abs(lat * lng * 17)  % ROADS_SAMPLE.length);
+  const bi  = Math.floor(Math.abs(lat * lng * 11)  % BLDGS_SAMPLE.length);
+  const elev = Math.floor(5 + Math.abs(Math.sin(lat) * Math.cos(lng)) * 55);
+  const aqi  = Math.floor(60 + Math.abs(Math.sin(lat * 10)) * 120);
+  const lst  = (28 + Math.abs(Math.sin(lat*5)*Math.cos(lng*5))*15).toFixed(1);
+  const ndvi = (0.1 + Math.abs(Math.sin(lat*8))*0.6).toFixed(3);
+  const zones = ["Urban Core","Suburban","Peri-Urban"];
+  const zone = zones[di % 3];
+  const pin = `40${String(di*10+wi).padStart(4,'0')}`;
+  const aqiColor = aqi<100?'#06d6a0':aqi<150?'#ffd23f':'#ef233c';
+  const aqiLbl   = aqi<50?'Good':aqi<100?'Moderate':aqi<150?'Unhealthy-SG':'Unhealthy';
+
+  document.getElementById('gm-lat').textContent  = lat.toFixed(6);
+  document.getElementById('gm-lng').textContent  = lng.toFixed(6);
+  document.getElementById('gm-elev').textContent = elev + ' m';
+  document.getElementById('gm-pin').textContent  = pin;
+  document.getElementById('gm-dist').textContent = DISTRICTS[di].name;
+  document.getElementById('gm-ward').textContent = WARDS_SAMPLE[wi];
+  document.getElementById('gm-zone').textContent = zone;
+  document.getElementById('gm-road').textContent = ROADS_SAMPLE[ri];
+  document.getElementById('gm-bldg').textContent = BLDGS_SAMPLE[bi];
+  document.getElementById('gm-aqi').textContent  = aqi;
+  document.getElementById('gm-aqi').style.color  = aqiColor;
+  document.getElementById('gm-aqi-lbl').textContent = aqiLbl;
+  document.getElementById('gm-aqi-lbl').style.color = aqiColor;
+  document.getElementById('gm-lst').textContent  = lst + '°C';
+  document.getElementById('gm-ndvi').textContent = ndvi;
+
+  const gm = document.getElementById('geomarker');
+  gm.classList.remove('show');
+  void gm.offsetWidth;
+  gm.classList.add('show');
+
+  // Drop marker on map
+  if (window._geoPin) map.removeLayer(window._geoPin);
+  window._geoPin = L.circleMarker([lat, lng], {
+    radius:7, fillColor:'#00e5ff', color:'#00e5ff',
+    fillOpacity:0.9, weight:2, opacity:1
+  }).addTo(map);
+}
+
+function closeGeoMarker() {
+  document.getElementById('geomarker').classList.remove('show');
+  if (window._geoPin) { map.removeLayer(window._geoPin); window._geoPin = null; }
+}
+
+// ── MEASURE TOOLS ─────────────────────────────────────────────────────────────
+function handleDistanceClick(e) {
+  measurePoints.push(e.latlng);
+  if (measureLayer) map.removeLayer(measureLayer);
+  if (measurePoints.length >= 2) {
+    measureLayer = L.polyline(measurePoints, {
+      color:'#ffd23f', weight:2.5, dashArray:'8 4', opacity:0.9
+    }).addTo(map);
+    let total = 0;
+    for (let i=1; i<measurePoints.length; i++)
+      total += measurePoints[i-1].distanceTo(measurePoints[i]);
+    const result = {
+      type:'Distance',
+      value: total < 1000
+        ? `${total.toFixed(0)} m`
+        : `${(total/1000).toFixed(3)} km`
+    };
+    measurements.push(result);
+    refreshMeasurePanel();
+    L.popup().setLatLng(e.latlng)
+      .setContent(`<b style="color:#ffd23f">Distance: ${result.value}</b>`)
+      .openOn(map);
+  }
+  L.circleMarker(e.latlng, {radius:4, fillColor:'#ffd23f', color:'#ffd23f', fillOpacity:1, weight:1}).addTo(map);
+}
+
+function handleBufferClick(e) {
+  const r = parseInt(prompt('Enter buffer radius in meters (e.g. 500):', '500') || '500');
+  if (!r || isNaN(r)) return;
+  if (bufferLayer) map.removeLayer(bufferLayer);
+  bufferLayer = L.circle(e.latlng, {
+    radius:r, color:'#00e5ff', fillColor:'transparent',
+    weight:2, opacity:0.8, dashArray:'6 3'
+  }).addTo(map);
+  L.popup().setLatLng(e.latlng)
+    .setContent(`<b style="color:#00e5ff">Buffer: ${r >= 1000 ? (r/1000).toFixed(2)+' km' : r+' m'}</b>`)
+    .openOn(map);
+  measurements.push({type:'Buffer', value: r >= 1000 ? (r/1000).toFixed(2)+' km' : r+' m'});
+  refreshMeasurePanel();
+}
+
+function setActiveTool(tool) {
+  activeTool = activeTool === tool ? null : tool;
+  measurePoints = [];
+  if (measureLayer) { map.removeLayer(measureLayer); measureLayer = null; }
+  if (bufferLayer)  { map.removeLayer(bufferLayer);  bufferLayer  = null; }
+  map.closePopup();
+  if (currentPanel === 'measure') renderPanel('measure');
+}
+
+function onDrawCreated(e) {
+  e.layer.addTo(map);
+  const type = e.layerType;
+  if (type === 'polygon' || type === 'circle') {
+    let area;
+    if (type === 'polygon') {
+      const pts = e.layer.getLatLngs()[0];
+      area = computePolygonArea(pts);
+    } else {
+      const r = e.layer.getRadius();
+      area = Math.PI * r * r;
+    }
+    const ha = (area / 10000).toFixed(2);
+    const sqkm = (area / 1000000).toFixed(4);
+    measurements.push({type:'Area', value:`${ha} ha (${sqkm} km²)`});
+    L.popup().setLatLng(e.layer.getBounds().getCenter())
+      .setContent(`<b style="color:#06d6a0">Area: ${ha} ha</b>`)
+      .openOn(map);
+    refreshMeasurePanel();
+  }
+}
+
+function computePolygonArea(pts) {
+  // Shoelace formula approximation in meters using lng/lat
+  let area = 0;
+  const n = pts.length;
+  for (let i=0; i<n; i++) {
+    const j = (i+1)%n;
+    const xi = pts[i].lng * Math.PI/180 * 6371000 * Math.cos(pts[i].lat * Math.PI/180);
+    const yi = pts[i].lat * Math.PI/180 * 6371000;
+    const xj = pts[j].lng * Math.PI/180 * 6371000 * Math.cos(pts[j].lat * Math.PI/180);
+    const yj = pts[j].lat * Math.PI/180 * 6371000;
+    area += xi * yj - xj * yi;
+  }
+  return Math.abs(area) / 2;
+}
+
+function refreshMeasurePanel() {
+  if (currentPanel === 'measure') renderPanel('measure');
+}
+
+// ── PANEL SYSTEM ──────────────────────────────────────────────────────────────
+function togglePanel(id) {
+  if (currentPanel === id) { closePanel(); return; }
+  currentPanel = id;
+  document.querySelectorAll('.rail-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('rb-' + id)?.classList.add('active');
+  const sp = document.getElementById('side-panel');
+  sp.classList.add('open');
+  document.getElementById('panel-title').textContent = id.toUpperCase();
+  renderPanel(id);
+}
+
+function closePanel() {
+  currentPanel = null;
+  document.querySelectorAll('.rail-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('side-panel').classList.remove('open');
+}
+
+function renderPanel(id) {
+  const body = document.getElementById('panel-body');
+  if (id === 'layers')  { body.innerHTML = buildLayersHTML(); }
+  if (id === 'basemap') { body.innerHTML = buildBasemapHTML(); }
+  if (id === 'geoai')   { body.innerHTML = buildGeoAIHTML(); }
+  if (id === 'measure') { body.innerHTML = buildMeasureHTML(); }
+  if (id === 'search')  { body.innerHTML = buildSearchHTML(); }
+  if (id === 'admin')   { body.innerHTML = buildAdminHTML(); }
+}
+
+// ── PANEL BUILDERS ────────────────────────────────────────────────────────────
+function buildLayersHTML() {
+  const groups = [...new Set(LAYERS.map(l => l.group))];
+  let html = '';
+  groups.forEach(g => {
+    html += `<div class="layer-group-header" onclick="toggleGroupCollapse(this)">
+      ${g}<span>›</span></div>`;
+    LAYERS.filter(l => l.group === g).forEach(l => {
+      const st = layerStates[l.id];
+      html += `<div class="layer-item">
+        <div class="layer-row">
+          <div class="layer-dot" style="background:${l.color}"></div>
+          <span class="layer-name">${l.name}</span>
+          <button class="layer-toggle ${st.visible?'on':''}" onclick="toggleLayer('${l.id}')">
+            ${st.visible
+              ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+              : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+            }
+          </button>
+        </div>
+        ${st.visible ? `<div class="opacity-row">
+          <span style="color:#1e3a4a;font-size:9px;">α</span>
+          <input type="range" min="0" max="1" step="0.05" value="${st.opacity}"
+            oninput="setOpacity('${l.id}',this.value)">
+          <span class="opacity-val">${Math.round(st.opacity*100)}%</span>
+        </div>` : ''}
+      </div>`;
+    });
+  });
+  updateLegend();
+  return html;
+}
+
+function buildBasemapHTML() {
+  let html = '<div class="basemap-grid">';
+  BASEMAPS.forEach(bm => {
+    const active = currentTileLayer && currentTileLayer._url === bm.url;
+    html += `<button class="bm-btn ${active?'active':''}" onclick="switchBasemap('${bm.id}')">
+      <div class="bm-preview" style="background:${bm.color};"></div>
+      <div class="bm-name">${bm.name}</div>
+    </button>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+function buildGeoAIHTML() {
+  let html = `<div class="geoai-badge">
+    <div class="geoai-badge-title">GOOGLE EARTH ENGINE</div>
+    <div class="geoai-badge-sub">Sentinel-2 · Landsat-8 · NASADEM</div>
+  </div>`;
+  GEOAI.forEach(idx => {
+    const active = activeGeoAI === idx.id;
+    html += `<button class="index-btn ${active?'active':''}" onclick="toggleGeoAI('${idx.id}','${idx.name}','${idx.src}')">
+      <div class="index-btn-left">
+        <span class="idx-name">${idx.name}</span>
+        <span class="idx-desc">${idx.desc}</span>
+      </div>
+      <div class="idx-src">${idx.src}</div>
+    </button>`;
+  });
+  return html;
+}
+
+function buildMeasureHTML() {
+  const tools = [
+    {id:'distance', name:'Distance',    icon:'M2 12h20M6 9l-3 3 3 3M18 9l3 3-3 3'},
+    {id:'buffer',   name:'Buffer Zone', icon:'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12z'},
+    {id:'draw-poly',name:'Draw & Area',  icon:'M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3z'},
+    {id:'clear',    name:'Clear All',   icon:'M3 6h18M19 6l-1 14H6L5 6M10 6V4h4v2'},
+  ];
+  let html = '<div class="tool-grid">';
+  tools.forEach(t => {
+    const active = activeTool === t.id;
+    html += `<button class="tool-btn ${active?'active':''}" onclick="handleToolBtn('${t.id}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="${t.icon}"/>
+      </svg>
+      <span class="tb-name">${t.name}</span>
+    </button>`;
+  });
+  html += '</div>';
+  if (activeTool === 'distance')
+    html += `<div class="tool-hint">Click 2+ points on map to measure distance. Click again to continue.</div>`;
+  if (activeTool === 'buffer')
+    html += `<div class="tool-hint">Click anywhere on the map — you'll be prompted for a radius.</div>`;
+  if (activeTool === 'draw-poly')
+    html += `<div class="tool-hint">Use the draw tools (top-left corner of map) to draw a polygon and calculate area.</div>`;
+  if (measurements.length > 0) {
+    html += '<div class="section-label">RESULTS</div><div class="measure-results">';
+    measurements.slice(-6).reverse().forEach(m => {
+      html += `<div class="mresult"><span class="mresult-type">${m.type}</span><span class="mresult-val">${m.value}</span></div>`;
+    });
+    html += '</div>';
+  }
+  return html;
+}
+
+function buildSearchHTML() {
+  let html = `<div class="search-wrap">
+    <input class="search-input" id="search-input" placeholder="Search location in MMR..." onkeydown="if(event.key==='Enter')doSearch()"/>
+    <button class="search-btn" onclick="doSearch()">SEARCH</button>
+    <div class="quick-locs"><div class="section-label" style="padding:8px 0 5px;">QUICK LOCATIONS</div>`;
+  DISTRICTS.forEach(d => {
+    html += `<button class="qloc-btn" onclick="flyTo(${d.lat},${d.lng},'${d.name}')">
+      <span class="qloc-name">${d.name}</span>
+      <div class="qloc-meta">
+        <span class="qloc-pop">${d.pop}</span>
+        <div class="qloc-dot" style="background:${d.color}"></div>
+      </div>
+    </button>`;
+  });
+  html += '</div></div>';
+  return html;
+}
+
+function buildAdminHTML() {
+  return `
+  <div style="padding:10px 12px;">
+    <div class="geoai-badge" style="background:rgba(255,186,8,0.06);border-color:rgba(255,186,8,0.2);">
+      <div class="geoai-badge-title" style="color:#ffd23f;">ADMIN LAYER MANAGEMENT</div>
+      <div class="geoai-badge-sub">Upload & auto-publish to GeoServer + frontend</div>
+    </div>
+
+    <div class="section-label">UPLOAD TYPE</div>
+    <div style="display:flex;gap:4px;margin-bottom:10px;">
+      ${['GeoJSON','Shapefile','WMS','WFS'].map(t =>
+        `<button onclick="selectUploadType(this,'${t}')"
+          style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);
+          border-radius:5px;padding:5px 3px;cursor:pointer;color:#3a5a6a;font-size:9px;font-weight:700;
+          font-family:var(--font-mono);">${t}</button>`
+      ).join('')}
+    </div>
+
+    <input class="search-input" placeholder="Layer display name..." style="margin-bottom:8px;"/>
+    <div id="upload-zone" style="border:1.5px dashed rgba(255,255,255,0.1);border-radius:8px;padding:20px;
+      text-align:center;margin-bottom:8px;cursor:pointer;"
+      onclick="simulateUpload()">
+      <div style="color:#2a4a5a;font-size:24px;margin-bottom:6px;">↑</div>
+      <div style="color:#2a4a5a;font-size:10px;font-family:var(--font-mono);">Drop file or click to browse</div>
+    </div>
+    <button onclick="simulateUpload()" style="width:100%;background:rgba(255,186,8,0.12);
+      border:1px solid rgba(255,186,8,0.3);color:#ffd23f;border-radius:8px;padding:9px;
+      cursor:pointer;font-size:11px;font-weight:700;font-family:var(--font-disp);">
+      PUBLISH LAYER
+    </button>
+
+    <div class="section-label" style="margin-top:14px;">API ENDPOINTS</div>
+    ${[
+      {m:'GET',p:'/api/layers',d:'List all layers'},
+      {m:'POST',p:'/api/layers/upload',d:'Upload file'},
+      {m:'POST',p:'/api/layers/register',d:'Register WMS/WFS'},
+      {m:'DELETE',p:'/api/layers/:id',d:'Remove layer'},
+    ].map(ep => `
+      <div style="background:rgba(255,255,255,0.025);border-radius:6px;padding:7px 9px;margin-bottom:4px;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span style="color:${ep.m==='GET'?'#06d6a0':ep.m==='POST'?'#ffd23f':'#ef233c'};font-size:9px;font-weight:900;width:38px;font-family:var(--font-mono);">${ep.m}</span>
+          <span style="color:#2a4a5a;font-size:9px;font-family:var(--font-mono);">${ep.p}</span>
+        </div>
+        <div style="color:#1e2e3e;font-size:9px;margin-top:2px;padding-left:46px;">${ep.d}</div>
+      </div>`).join('')}
+  </div>`;
+}
+
+// ── ACTIONS ───────────────────────────────────────────────────────────────────
+function toggleLayer(id) {
+  layerStates[id].visible = !layerStates[id].visible;
+  renderPanel('layers');
+  updateLegend();
+}
+
+function setOpacity(id, val) {
+  layerStates[id].opacity = parseFloat(val);
+  // In full backend version this would update the actual layer
+  const el = document.querySelector(`.opacity-val`);
+  // Refresh opacity display
+  renderPanel('layers');
+}
+
+function switchBasemap(id) {
+  const bm = BASEMAPS.find(b => b.id === id);
+  if (!bm) return;
+  if (currentTileLayer) map.removeLayer(currentTileLayer);
+  currentTileLayer = L.tileLayer(bm.url, {attribution: bm.attr, maxZoom:20}).addTo(map);
+  renderPanel('basemap');
+}
+
+function toggleGeoAI(id, name, src) {
+  activeGeoAI = activeGeoAI === id ? null : id;
+  const badge = document.getElementById('geoai-badge');
+  if (activeGeoAI) {
+    document.getElementById('gab-sub-text').textContent = `${name} · ${src}`;
+    badge.classList.add('show');
+  } else {
+    badge.classList.remove('show');
+  }
+  renderPanel('geoai');
+}
+
+function handleToolBtn(id) {
+  if (id === 'clear') {
+    activeTool = null; measurePoints = []; measurements = [];
+    if (measureLayer) { map.removeLayer(measureLayer); measureLayer = null; }
+    if (bufferLayer)  { map.removeLayer(bufferLayer);  bufferLayer  = null; }
+    map.closePopup();
+    renderPanel('measure');
+    return;
+  }
+  if (id === 'draw-poly') {
+    activeTool = activeTool === 'draw-poly' ? null : 'draw-poly';
+    renderPanel('measure');
+    return;
+  }
+  setActiveTool(id);
+}
+
+function doSearch() {
+  const q = (document.getElementById('search-input')?.value || '').toLowerCase().trim();
+  if (!q) return;
+  const found = DISTRICTS.find(d => d.name.toLowerCase().includes(q));
+  if (found) flyTo(found.lat, found.lng, found.name);
+  else alert('Location not found in MMR database. Try: Mumbai, Thane, Navi Mumbai, Panvel');
+}
+
+function flyTo(lat, lng, name) {
+  map.flyTo([lat, lng], 13, {animate:true, duration:1.2});
+  showGeoMarker(lat, lng);
+  closePanel();
+}
+
+function toggleGroupCollapse(el) {
+  const chevron = el.querySelector('span');
+  let next = el.nextElementSibling;
+  while (next && !next.classList.contains('layer-group-header')) {
+    next.style.display = next.style.display === 'none' ? '' : 'none';
+    next = next.nextElementSibling;
+  }
+  chevron.style.transform = chevron.style.transform === 'rotate(90deg)' ? '' : 'rotate(90deg)';
+}
+
+function selectUploadType(btn, type) {
+  btn.parentElement.querySelectorAll('button').forEach(b => {
+    b.style.background='rgba(255,255,255,0.03)';
+    b.style.color='#3a5a6a';
+    b.style.borderColor='rgba(255,255,255,0.07)';
+  });
+  btn.style.background='rgba(255,186,8,0.12)';
+  btn.style.color='#ffd23f';
+  btn.style.borderColor='rgba(255,186,8,0.3)';
+}
+
+function simulateUpload() {
+  const zone = document.getElementById('upload-zone');
+  if (!zone) return;
+  zone.innerHTML = '<div style="color:#ffd23f;font-size:10px;font-family:var(--font-mono);">⏳ Publishing to GeoServer...</div>';
+  setTimeout(() => {
+    zone.innerHTML = '<div style="color:#06d6a0;font-size:10px;font-family:var(--font-mono);">✓ Layer Published & Live in Frontend</div>';
+  }, 2000);
+}
+
+function updateLegend() {
+  const visible = LAYERS.filter(l => layerStates[l.id].visible);
+  const legend = document.getElementById('legend');
+  const items  = document.getElementById('legend-items');
+  if (!visible.length) { legend.style.display='none'; return; }
+  legend.style.display='block';
+  items.innerHTML = visible.map(l =>
+    `<div class="legend-item">
+      <div class="legend-swatch" style="background:${l.color}"></div>
+      <span class="legend-name">${l.name}</span>
+    </div>`
+  ).join('');
+}
+
+// ── DISTRICT BAR ──────────────────────────────────────────────────────────────
+function buildDistrictBar() {
+  const bar = document.getElementById('district-bar');
+  DISTRICTS.forEach((d, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'dbar-btn' + (i===0?' active':'');
+    btn.textContent = d.name;
+    btn.onclick = () => {
+      document.querySelectorAll('.dbar-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      map.flyTo([d.lat, d.lng], 13, {animate:true, duration:1});
+    };
+    bar.appendChild(btn);
+  });
+}
+
+// ── MODE TOGGLE ───────────────────────────────────────────────────────────────
+function setMode(mode) {
+  mapMode = mode;
+  document.getElementById('btn2d').classList.toggle('active', mode==='2d');
+  document.getElementById('btn3d').classList.toggle('active', mode==='3d');
+  document.getElementById('view3d').classList.toggle('show', mode==='3d');
+}
+
+// ── CLOCK ──────────────────────────────────────────────────────────────────────
+function updateClock() {
+  document.getElementById('live-time').textContent = new Date().toLocaleTimeString('en-IN');
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+window.onload = initMap;
+</script>
+</body>
+</html>
